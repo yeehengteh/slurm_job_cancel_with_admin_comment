@@ -1,0 +1,106 @@
+#!/usr/bin/python3
+
+import pwd
+import subprocess
+import shutil
+import json
+import argparse
+import os
+from argparse import RawTextHelpFormatter, ArgumentParser
+
+# Return all current running and queuing job id
+def get_all_jobid():
+    # Run 'squeue' command and return json format
+    proc = subprocess.Popen('squeue --json', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+    output=out.decode('utf-8')
+    job_list=[]
+    data=json.loads(output)
+    # Append all job id from json into list
+    for job in data['jobs']:
+        job_list.append(job['job_id'])
+    return job_list
+
+# Validate the input job id
+def validate_job(job_list,id):
+    # Return boolean on validation
+    if id not in job_list:
+        return False
+    else:
+        return True
+
+# Validate the input user
+def validate_username(username):
+    # Return boolean on validation
+    try:
+        pwd.getpwnam(username)
+        return True
+    except KeyError:
+        return False
+
+# Return all running job id of a user
+def get_jobid_by_user(username):
+    # Run 'squeue' command to return all running job id of a user into a json
+    proc = subprocess.Popen('squeue --json -u %s'%username, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+    output=out.decode('utf-8')
+    job_list=[]
+    data=json.loads(output)
+    # Append job id into list
+    for job in data['jobs']:
+        job_list.append(job['job_id'])
+    # Print the output
+    [print(id) for id in job_list]
+
+# Set admin comment on the job
+def set_admin_comment(jobid, comment):
+    try:
+        # Set admin comment to a job
+        proc = subprocess.Popen('sacctmgr modify job --immediate set admincomment="%s" where jobid=%s'%(comment, jobid), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = proc.communicate()
+        output = out.decode('utf-8')
+        print(output)
+        # Check the admin comment is being set
+        checkproc = subprocess.Popen('sacct -j %s -o admincomment -P'%jobid, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        o, e = checkproc.communicate()
+        checkoutput = o.decode('utf-8')
+        print(checkoutput)
+
+    except subprocess.CalledProcessError as e:
+        print("Failed to set admin comment!")
+
+# Cancel the job with job id
+def cancel_job(jobid):
+    try:
+        # Run 'scancel' command to cancel the job
+        proc = subprocess.Popen('scancel %s'%jobid, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = proc.communicate()
+        output = out.decode('utf-8')
+        print("Job %s is cancelled successfully!"%jobid)
+    except subprocess.CalledProcessError as e:
+        print("Failed to cancel the job %s"%jobid)
+
+if __name__ == "__main__":
+    parser = ArgumentParser(description='Cancel job with admin comment.', formatter_class=RawTextHelpFormatter)
+    parser.add_argument("-j", "--jobid", help="Job ID of the job to cancel.", type=int, metavar="jobid")
+    parser.add_argument("-c", "--comment", help="Message for admin comment.", type=str, metavar="\"admin_comment\"")
+    parser.add_argument("-u", "--username", help="Print the list of the jobs by username.", type=str, metavar="username")
+    parser.add_argument("-l", "--list", help="List all job.", action="store_true")
+    args = parser.parse_args()
+    if args.jobid and args.comment:
+        job_list=get_all_jobid()
+        if not validate_job(job_list, args.jobid):
+            print("Invalid Job ID!")
+        else:
+            set_admin_comment(args.jobid, args.comment)
+            cancel_job(args.jobid)
+    elif args.username:
+        if validate_username(args.username):
+            get_jobid_by_user(args.username)
+        else:
+            print("Invalid user!")
+    elif args.list:
+        job_list=get_all_jobid()
+        [print(job) for job in job_list]
+    else:
+        parser.print_help()
