@@ -11,7 +11,7 @@ from argparse import RawTextHelpFormatter, ArgumentParser
 # Return all current running and queuing job id
 def get_all_jobid():
     # Run 'squeue' command and return json format
-    proc = subprocess.Popen('squeue --json', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen('squeue --json=v0.0.40', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = proc.communicate()
     output=out.decode('utf-8')
     job_list=[]
